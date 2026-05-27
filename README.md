@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# MeshMeet - WebRTC Video Chat Application
 
-## Getting Started
+A production-ready, multi-peer video chat application built with Next.js, TypeScript, and WebRTC. It utilizes a custom signaling server powered by Socket.IO to negotiate peer-to-peer connections in a mesh topology.
 
-First, run the development server:
+## Overview
+
+MeshMeet allows up to 4 participants to seamlessly connect in a video conference room. It leverages the raw WebRTC API to handle media streams directly between peers, significantly reducing server overhead and latency. 
+
+### Core Features:
+- **Real-Time Video/Audio**: P2P media streaming with WebRTC.
+- **Mesh Topology**: Every participant maintains a direct connection with all other participants in the room.
+- **Media Controls**: Mute microphone, toggle camera, and cleanly hang up the call.
+- **Live Text Chat**: Integrated real-time messaging using Socket.IO.
+- **Status Indicators**: Visual feedback on WebRTC connection states (waiting, connecting, connected).
+- **Trickle ICE**: Expedites connection times by sending ICE candidates as they are discovered.
+
+## Architecture
+
+The application is built using a unified Next.js setup with a **Custom Server**:
+
+1. **Custom Server (`server.ts`)**:
+   Instead of Next.js's default server, this project spins up a custom Node.js `http` server. This allows us to attach a `Socket.IO` WebSocket server to the exact same port that serves our Next.js HTTP traffic.
+   - It handles signaling events: `join-room`, `offer`, `answer`, `ice-candidate`, and `user-disconnected`.
+   
+2. **Frontend (Next.js App Router)**:
+   - Built using React Server Components where possible, and Client Components for WebRTC logic.
+   - The UI is styled with Tailwind CSS for a clean, responsive, dark-mode-first aesthetic.
+   
+3. **WebRTC Client Logic (`useWebRTC` hook)**:
+   - Manages local `navigator.mediaDevices.getUserMedia()`.
+   - Maintains a map of `RTCPeerConnection` objects for each remote peer.
+   - Handles the complex negotiation flow (SDP Offers/Answers) asynchronously.
+
+## Setup Instructions
+
+This application is fully containerized for easy deployment.
+
+### Prerequisites
+- Docker and Docker Compose installed on your system.
+
+### Environment Variables
+Copy the provided `.env.example` file to create your own `.env` file:
+```bash
+cp .env.example .env
+```
+Ensure `PORT=3000` and `NEXT_PUBLIC_STUN_SERVER` are set.
+
+### Running with Docker
+
+To build and start the application, run the following command in the root directory:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+docker-compose up --build -d
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- The application will be accessible at `http://localhost:3000`.
+- Docker Compose will automatically monitor the health of the container via the `/api/health` endpoint.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Running Locally (Without Docker)
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+If you prefer to run it outside of Docker for development:
 
-## Learn More
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Start the development server (uses `ts-node` for the custom server):
+   ```bash
+   npm run dev
+   ```
+3. Open `http://localhost:3000` in your browser.
 
-To learn more about Next.js, take a look at the following resources:
+## Testing
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+The application includes specific `data-test-id` attributes on core UI elements to support automated E2E testing (e.g., `local-video`, `remote-video-container`, `mute-mic-button`, etc.). To manually test, open the same room URL in multiple browser windows and grant media permissions.
