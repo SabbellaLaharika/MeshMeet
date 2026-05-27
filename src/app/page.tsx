@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
-import { Video } from 'lucide-react'; // I will just use an SVG instead to avoid adding lucide-react right now.
 
 export default function Home() {
   const router = useRouter();
