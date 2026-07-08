@@ -18,8 +18,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Next.js telemetry is disabled by default
-ENV NEXT_TELEMETRY_DISABLED 1
-ENV NODE_ENV production
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NODE_ENV=production
 
 RUN npm run build
 
@@ -27,8 +27,8 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1
 
 # Install curl for healthcheck
 RUN apk add --no-cache curl
@@ -47,6 +47,6 @@ COPY --from=builder /app/dist ./dist
 USER nextjs
 
 EXPOSE 3000
-ENV PORT 3000
+ENV PORT=3000
 
 CMD ["npm", "start"]
