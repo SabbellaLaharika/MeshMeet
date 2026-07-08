@@ -15,6 +15,9 @@ export interface RemotePeer {
   stream: MediaStream;
 }
 
+const STUN_SERVER = process.env.NEXT_PUBLIC_STUN_SERVER || 'stun:stun.l.google.com:19302';
+const configuration = { iceServers: [{ urls: STUN_SERVER }] };
+
 export function useWebRTC(roomId: string) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remotePeers, setRemotePeers] = useState<RemotePeer[]>([]);
@@ -28,27 +31,73 @@ export function useWebRTC(roomId: string) {
   const peersRef = useRef<{ [socketId: string]: RTCPeerConnection }>({});
   const localStreamRef = useRef<MediaStream | null>(null);
 
-  const STUN_SERVER = process.env.NEXT_PUBLIC_STUN_SERVER || 'stun:stun.l.google.com:19302';
-  const configuration = { iceServers: [{ urls: STUN_SERVER }] };
-
   useEffect(() => {
+    let active = true;
+    let localStreamInstance: MediaStream | null = null;
+    let socketInstance: Socket | null = null;
+
+    const createPeerConnection = (userId: string, stream: MediaStream) => {
+      const peerConnection = new RTCPeerConnection(configuration);
+
+      // Trickle ICE
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate && socketRef.current) {
+          socketRef.current.emit('ice-candidate', {
+            target: userId,
+            caller: socketRef.current.id,
+            candidate: event.candidate,
+          });
+        }
+      };
+
+      peerConnection.onconnectionstatechange = () => {
+        if (peerConnection.connectionState === 'connected') {
+          setStatus('connected');
+        }
+      };
+
+      // Add local stream tracks to connection
+      stream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, stream);
+      });
+
+      // Handle incoming remote stream
+      peerConnection.ontrack = (event) => {
+        setRemotePeers(prev => {
+          // Prevent adding duplicate streams for the same user
+          if (prev.find(p => p.id === userId)) return prev;
+          return [...prev, { id: userId, stream: event.streams[0] }];
+        });
+      };
+
+      return peerConnection;
+    };
+
     // 1. Get user media
     const initMedia = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (!active) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        localStreamInstance = stream;
         setLocalStream(stream);
         localStreamRef.current = stream;
         
         // 2. Initialize Socket.IO connection
-        socketRef.current = io();
+        socketInstance = io();
+        socketRef.current = socketInstance;
         
-        const socket = socketRef.current;
+        const socket = socketInstance;
 
         socket.on('connect', () => {
+          if (!active) return;
           socket.emit('join-room', roomId);
         });
 
         socket.on('user-connected', async (userId: string) => {
+          if (!active) return;
           // Status updates
           if (Object.keys(peersRef.current).length === 0) setStatus('connecting');
           
@@ -65,6 +114,7 @@ export function useWebRTC(roomId: string) {
         });
 
         socket.on('offer', async (payload: { target: string, caller: string, sdp: RTCSessionDescriptionInit }) => {
+          if (!active) return;
           if (Object.keys(peersRef.current).length === 0) setStatus('connecting');
 
           const peerConnection = createPeerConnection(payload.caller, stream);
@@ -81,6 +131,7 @@ export function useWebRTC(roomId: string) {
         });
 
         socket.on('answer', async (payload: { target: string, caller: string, sdp: RTCSessionDescriptionInit }) => {
+          if (!active) return;
           const peerConnection = peersRef.current[payload.caller];
           if (peerConnection) {
             try {
@@ -92,6 +143,7 @@ export function useWebRTC(roomId: string) {
         });
 
         socket.on('ice-candidate', async (payload: { target: string, caller: string, candidate: RTCIceCandidateInit }) => {
+          if (!active) return;
           const peerConnection = peersRef.current[payload.caller];
           if (peerConnection) {
             try {
@@ -135,55 +187,22 @@ export function useWebRTC(roomId: string) {
     initMedia();
 
     return () => {
+      active = false;
       // Cleanup on unmount
-      if (localStreamRef.current) {
+      if (localStreamInstance) {
+        localStreamInstance.getTracks().forEach(track => track.stop());
+      } else if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(track => track.stop());
       }
       Object.values(peersRef.current).forEach(pc => pc.close());
-      if (socketRef.current) {
+      peersRef.current = {};
+      if (socketInstance) {
+        socketInstance.disconnect();
+      } else if (socketRef.current) {
         socketRef.current.disconnect();
       }
     };
   }, [roomId]);
-
-  const createPeerConnection = (userId: string, stream: MediaStream) => {
-    const peerConnection = new RTCPeerConnection(configuration);
-
-    // Trickle ICE
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate && socketRef.current) {
-        socketRef.current.emit('ice-candidate', {
-          target: userId,
-          caller: socketRef.current.id,
-          candidate: event.candidate,
-        });
-      }
-    };
-
-    peerConnection.onconnectionstatechange = () => {
-      if (peerConnection.connectionState === 'connected') {
-        setStatus('connected');
-      } else if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
-        // Handled in user-disconnected, but good for fallback
-      }
-    };
-
-    // Add local stream tracks to connection
-    stream.getTracks().forEach(track => {
-      peerConnection.addTrack(track, stream);
-    });
-
-    // Handle incoming remote stream
-    peerConnection.ontrack = (event) => {
-      setRemotePeers(prev => {
-        // Prevent adding duplicate streams for the same user
-        if (prev.find(p => p.id === userId)) return prev;
-        return [...prev, { id: userId, stream: event.streams[0] }];
-      });
-    };
-
-    return peerConnection;
-  };
 
   const toggleMic = useCallback(() => {
     if (localStream) {
