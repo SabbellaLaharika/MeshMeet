@@ -2,6 +2,11 @@
 
 MeshMeet is a high-performance, containerized, multi-peer video conferencing application built with **Next.js**, **TypeScript**, and **WebRTC**. It features a custom **Socket.IO** signaling server to establish direct, ultra-low-latency peer-to-peer (P2P) connections in a fully connected mesh topology.
 
+---
+
+## 🎥 Project Demo
+
+[![Watch the MeshMeet demo on YouTube](https://img.youtube.com/vi/H4L81-wvtCA/hqdefault.jpg)](https://youtu.be/H4L81-wvtCA)
 
 ---
 
