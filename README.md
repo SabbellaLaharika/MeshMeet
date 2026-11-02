@@ -6,7 +6,7 @@ MeshMeet is a high-performance, containerized, multi-peer video conferencing app
 
 ## 🎥 Project Demo
 
-[![Watch the MeshMeet demo on YouTube](https://img.youtube.com/vi/H4L81-wvtCA/hqdefault.jpg)](https://youtu.be/H4L81-wvtCA)
+[![Watch the MeshMeet demo on YouTube](https://img.youtube.com/vi/H4L81-wvtCA/maxresdefault.jpg)](https://youtu.be/H4L81-wvtCA)
 
 ---
 
